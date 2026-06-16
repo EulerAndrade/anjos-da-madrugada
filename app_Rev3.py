@@ -72,30 +72,30 @@ with st.form("form_multiplas_doacoes"):
     for item, dados in estoque.items():
         falta = dados["meta"] - dados["doado"]
         
-        # Tela dividida em 4 colunas (Nome | Status | Input | Unidade)
-        col1, col2, col3, col4 = st.columns([2, 1.2, 1.0, 0.5], vertical_alignment="center")
+        # --- NOVO LAYOUT RESPONSIVO (MOBILE-FRIENDLY) ---
+        st.markdown(f"**{item}**") # Nome do produto atua como cabeçalho do bloco
+        
+        col1, col2 = st.columns(2, vertical_alignment="bottom")
         
         with col1:
-            st.write(f"**{item}**")
-        with col2:
             if falta > 0:
                 st.info(f"Faltam: **{falta:.2f}**")
             else:
                 st.success("✅ Completo!")
-        with col3:
+        with col2:
+            label_caixa = f"Qtd ({dados['unidade']})" # Unidade embutida na etiqueta!
+            
             if falta > 0:
                 doacoes_atuais[item] = st.number_input(
-                    "Qtd", min_value=0.0, max_value=float(falta), step=float(dados["passo"]), 
-                    key=f"in_{item}", label_visibility="collapsed"
+                    label_caixa, min_value=0.0, max_value=float(falta), step=float(dados["passo"]), 
+                    key=f"in_{item}"
                 )
             else:
                 st.number_input(
-                    "Qtd", value=0.0, disabled=True, 
-                    key=f"in_{item}", label_visibility="collapsed"
+                    label_caixa, value=0.0, disabled=True, 
+                    key=f"in_{item}"
                 )
-        with col4:
-            # Imprime a unidade colada à direita da caixa de número
-            st.write(f"*{dados['unidade']}*")
+        st.write("") # Um pequeno respiro visual entre os produtos
                 
     st.write("---")
     submit_button = st.form_submit_button("💖 Confirmar Minhas Doações", use_container_width=True)
