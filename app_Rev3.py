@@ -12,36 +12,46 @@ st.subheader("Ação Solidária: Preparo do Estrogonofe - 23/06/2026")
 
 # --- AVISO DE PRAZO EM DESTAQUE ---
 st.error("🚨 **ATENÇÃO - PRAZO DE ENTREGA:** Para a organização logística da ação, todas as doações deverão estar disponíveis na Igreja, impreterivelmente, até a **segunda-feira, 22/06/2026**.")
-
 st.markdown("---")
-# Função para conectar ao Google Sheets (com cache para não sobrecarregar a API)
-@st.cache_resource
+
+@st.cache_resource(ttl=10) # Limpa a conexão periodicamente para garantir dados frescos
 def conectar_planilha():
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    # O Streamlit lê o JSON que colocaremos nas configurações secretas do servidor
     cred_dict = dict(st.secrets["gcp_service_account"])
     creds = ServiceAccountCredentials.from_json_keyfile_dict(cred_dict, scope)
     client = gspread.authorize(creds)
-    return client.open("Arrecadacao_Estrogonofe") # Nome exato da sua planilha
+    return client.open("Arrecadacao_Estrogonofe")
 
 try:
     planilha = conectar_planilha()
     aba_estoque = planilha.worksheet("Estoque")
     aba_historico = planilha.worksheet("Historico")
 except Exception as e:
-    st.error(f"Erro detalhado: {e}")
+    st.error(f"Erro detalhado de conexão: {e}")
     st.stop()
 
-# Lendo os dados da planilha
+# Leitura dos dados brutos
 registros_estoque = aba_estoque.get_all_records()
-estoque = {}
+registros_historico = aba_historico.get_all_records()
 
-# Monta o dicionário de estoque e mapeia a linha da planilha para atualização futura
-for i, linha in enumerate(registros_estoque):
-    estoque[linha['Item']] = {
-        "meta": float(linha['Meta']),
-        "doado": float(linha['Doado']),
-        "linha_planilha": i + 2 # +2 porque a linha 1 é o cabeçalho
+# --- NOVO NÚCLEO DE PROCESSAMENTO (Single Source of Truth) ---
+# Se houver histórico, cria um DataFrame e soma as quantidades agrupadas pelo Item
+if registros_historico:
+    df_hist = pd.DataFrame(registros_historico)
+    doacoes_por_item = df_hist.groupby('Item')['Quantidade'].sum().to_dict()
+else:
+    doacoes_por_item = {}
+
+estoque = {}
+for linha in registros_estoque:
+    item = linha['Item']
+    meta = float(linha['Meta'])
+    # Pega o total doado do dicionário processado. Se o item não tiver doações, assume 0.0
+    doado = float(doacoes_por_item.get(item, 0.0)) 
+    
+    estoque[item] = {
+        "meta": meta,
+        "doado": doado
     }
 
 st.write("### 📝 Formulário de Doação")
@@ -87,23 +97,31 @@ with st.form("form_multiplas_doacoes"):
             st.warning("⚠️ Preencha a quantidade de pelo menos um item para doar.")
         else:
             with st.spinner('Registrando sua doação no sistema...'):
-                # Atualiza a planilha
+                linhas_para_adicionar = []
+                data_atual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                
                 for item, qtd in doacoes_atuais.items():
                     if qtd > 0:
-                        # Grava na aba Histórico
-                        data_atual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                        aba_historico.append_row([data_atual, nome_doador, item, qtd])
-                        
-                        # Atualiza a quantidade doada na aba Estoque
-                        nova_qtd_doada = estoque[item]['doado'] + qtd
-                        aba_estoque.update_cell(estoque[item]['linha_planilha'], 3, nova_qtd_doada)
+                        linhas_para_adicionar.append([data_atual, nome_doador, item, qtd])
                 
-                st.cache_resource.clear() # Limpa o cache para forçar a leitura dos novos dados
+                # Envia todas as doações de uma vez só para a aba Histórico
+                if linhas_para_adicionar:
+                    aba_historico.append_rows(linhas_para_adicionar)
+                
+                st.cache_resource.clear()
                 st.success(f"🎉 Muito obrigado, {nome_doador}! Sua doação foi registrada com sucesso!")
                 st.rerun()
 
 st.write("---")
 with st.expander("📊 Ver Resumo Completo das Arrecadações"):
-    df = pd.DataFrame(registros_estoque)
-    df['Status'] = df.apply(lambda row: "✅ Concluído" if (row['Meta'] - row['Doado']) <= 0 else f"Faltam {(row['Meta'] - row['Doado']):.2f}", axis=1)
-    st.dataframe(df, width='stretch')
+    dados_tabela = []
+    for item, dados in estoque.items():
+        restante = dados["meta"] - dados["doado"]
+        dados_tabela.append({
+            "Item": item,
+            "Meta": dados["meta"],
+            "Arrecadado": dados["doado"],
+            "Status": "✅ Concluído" if restante <= 0 else f"Faltam {restante:.2f}"
+        })
+    df_resumo = pd.DataFrame(dados_tabela)
+    st.dataframe(df_resumo, width='stretch')
