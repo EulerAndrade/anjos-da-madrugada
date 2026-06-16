@@ -14,7 +14,7 @@ st.subheader("Ação Solidária: Preparo do Estrogonofe - 23/06/2026")
 st.error("🚨 **ATENÇÃO - PRAZO DE ENTREGA:** Para a organização logística da ação, todas as doações deverão estar disponíveis na Igreja, impreterivelmente, até a **segunda-feira, 22/06/2026**.")
 st.markdown("---")
 
-@st.cache_resource(ttl=10) # Limpa a conexão periodicamente para garantir dados frescos
+@st.cache_resource(ttl=10)
 def conectar_planilha():
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     cred_dict = dict(st.secrets["gcp_service_account"])
@@ -34,8 +34,7 @@ except Exception as e:
 registros_estoque = aba_estoque.get_all_records()
 registros_historico = aba_historico.get_all_records()
 
-# --- NOVO NÚCLEO DE PROCESSAMENTO (Single Source of Truth) ---
-# Se houver histórico, cria um DataFrame e soma as quantidades agrupadas pelo Item
+# --- NÚCLEO DE PROCESSAMENTO (Single Source of Truth) ---
 if registros_historico:
     df_hist = pd.DataFrame(registros_historico)
     doacoes_por_item = df_hist.groupby('Item')['Quantidade'].sum().to_dict()
@@ -44,15 +43,21 @@ else:
 
 estoque = {}
 for linha in registros_estoque:
-    item = linha['Item']
+    item = str(linha['Item']).strip()
     meta = float(linha['Meta'])
     doado = float(doacoes_por_item.get(item, 0.0)) 
-    passo = float(linha['Passo']) # <-- Nova linha lendo a coluna da planilha
+    
+    # Tratamento da vírgula brasileira para o padrão Python (ponto)
+    passo_bruto = str(linha['Passo']).replace(',', '.')
+    passo = float(passo_bruto)
+    
+    unidade = str(linha['Unidade']).strip()
     
     estoque[item] = {
         "meta": meta,
         "doado": doado,
-        "passo": passo # <-- Armazenando o passo no dicionário
+        "passo": passo,
+        "unidade": unidade
     }
 
 st.write("### 📝 Formulário de Doação")
@@ -67,7 +72,8 @@ with st.form("form_multiplas_doacoes"):
     for item, dados in estoque.items():
         falta = dados["meta"] - dados["doado"]
         
-        col1, col2, col3 = st.columns([2, 1.2, 1.2], vertical_alignment="center")
+        # Tela dividida em 4 colunas (Nome | Status | Input | Unidade)
+        col1, col2, col3, col4 = st.columns([2, 1.2, 1.0, 0.5], vertical_alignment="center")
         
         with col1:
             st.write(f"**{item}**")
@@ -87,9 +93,12 @@ with st.form("form_multiplas_doacoes"):
                     "Qtd", value=0.0, disabled=True, 
                     key=f"in_{item}", label_visibility="collapsed"
                 )
+        with col4:
+            # Imprime a unidade colada à direita da caixa de número
+            st.write(f"*{dados['unidade']}*")
                 
     st.write("---")
-    submit_button = st.form_submit_button("💖 Confirmar Minhas Doações", width='stretch')
+    submit_button = st.form_submit_button("💖 Confirmar Minhas Doações", use_container_width=True)
 
     if submit_button:
         if not nome_doador.strip():
@@ -105,7 +114,6 @@ with st.form("form_multiplas_doacoes"):
                     if qtd > 0:
                         linhas_para_adicionar.append([data_atual, nome_doador, item, qtd])
                 
-                # Envia todas as doações de uma vez só para a aba Histórico
                 if linhas_para_adicionar:
                     aba_historico.append_rows(linhas_para_adicionar)
                 
@@ -122,7 +130,8 @@ with st.expander("📊 Ver Resumo Completo das Arrecadações"):
             "Item": item,
             "Meta": dados["meta"],
             "Arrecadado": dados["doado"],
+            "Unidade": dados["unidade"],
             "Status": "✅ Concluído" if restante <= 0 else f"Faltam {restante:.2f}"
         })
     df_resumo = pd.DataFrame(dados_tabela)
-    st.dataframe(df_resumo, width='stretch')
+    st.dataframe(df_resumo, use_container_width=True)
