@@ -9,6 +9,15 @@ st.set_page_config(page_title="Doações - Anjos da Madrugada", layout="centered
 
 st.image("Anjos_da_Madrugada.jpg")
 st.subheader("Ação Solidária: Preparo do Estrogonofe - 23/06/2026")
+# Configuração da página
+st.set_page_config(page_title="Doações - Anjos da Madrugada", layout="centered")
+
+st.image("Anjos_da_Madrugada.jpg")
+st.subheader("Ação Solidária: Preparo do Estrogonofe - 23/06/2026")
+
+# --- AVISO DE PRAZO EM DESTAQUE ---
+st.warning("⏳ **PRAZO DE ENTREGA:** Para a organização logística da ação, todas as doações deverão estar disponíveis na Igreja, impreterivelmente, até a **segunda-feira, 22/06/2026**.")
+
 st.markdown("---")
 
 # Função para conectar ao Google Sheets (com cache para não sobrecarregar a API)
