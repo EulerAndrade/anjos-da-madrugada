@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 # Configuração da página
 st.set_page_config(page_title="Doações - Anjos da Madrugada", layout="centered")
@@ -108,7 +108,8 @@ with st.form("form_multiplas_doacoes"):
         else:
             with st.spinner('Registrando sua doação no sistema...'):
                 linhas_para_adicionar = []
-                data_atual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                fuso_br = timezone(timedelta(hours=-3))
+                data_atual = datetime.now(fuso_br).strftime("%d/%m/%Y %H:%M:%S")
                 
                 for item, qtd in doacoes_atuais.items():
                     if qtd > 0:
