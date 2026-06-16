@@ -46,12 +46,13 @@ estoque = {}
 for linha in registros_estoque:
     item = linha['Item']
     meta = float(linha['Meta'])
-    # Pega o total doado do dicionário processado. Se o item não tiver doações, assume 0.0
     doado = float(doacoes_por_item.get(item, 0.0)) 
+    passo = float(linha['Passo']) # <-- Nova linha lendo a coluna da planilha
     
     estoque[item] = {
         "meta": meta,
-        "doado": doado
+        "doado": doado,
+        "passo": passo # <-- Armazenando o passo no dicionário
     }
 
 st.write("### 📝 Formulário de Doação")
@@ -78,7 +79,7 @@ with st.form("form_multiplas_doacoes"):
         with col3:
             if falta > 0:
                 doacoes_atuais[item] = st.number_input(
-                    "Qtd", min_value=0.0, max_value=float(falta), step=0.5, 
+                    "Qtd", min_value=0.0, max_value=float(falta), step=float(dados["passo"]), 
                     key=f"in_{item}", label_visibility="collapsed"
                 )
             else:
