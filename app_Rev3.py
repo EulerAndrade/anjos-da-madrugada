@@ -26,7 +26,7 @@ try:
     aba_estoque = planilha.worksheet("Estoque")
     aba_historico = planilha.worksheet("Historico")
 except Exception as e:
-    st.error("Erro ao conectar no banco de dados. Verifique as credenciais.")
+    st.error(f"Erro detalhado: {e}")
     st.stop()
 
 # Lendo os dados da planilha
